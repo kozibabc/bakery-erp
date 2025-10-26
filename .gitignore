@@ -1,12 +1,38 @@
+# Node / JS
 node_modules/
 npm-debug.log*
-.env
-.env.local
-/frontend/build
-/backend/dist
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Logs
 logs/
 *.log
+
+# Env files
+.env
+.env.local
+.env.*
+
+# Editor & OS files
 .DS_Store
-.vscode/
+Thumbs.db
 .idea/
+.vscode/
+
+# Docker
 postgres_data/
+pg_data/
+docker-compose.override.yml
+
+# Builds
+/frontend/build
+/backend/dist
+
+# Coverage/test
+coverage/
+*.lcov
+
+# Misc
+*.swp
+*.swo

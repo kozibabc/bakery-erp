@@ -1,0 +1,47 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bakery_user
+      POSTGRES_PASSWORD: bakery_pass_2024
+      POSTGRES_DB: bakery_erp
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - bakery
+
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: db
+      DB_USER: bakery_user
+      DB_PASSWORD: bakery_pass_2024
+      DB_NAME: bakery_erp
+      JWT_SECRET: super-secret-jwt-key-change-this
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - bakery
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - bakery
+
+volumes:
+  pg_data:
+
+networks:
+  bakery:

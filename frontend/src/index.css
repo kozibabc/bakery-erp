@@ -1,0 +1,20 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
+button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+button.primary { background: #667eea; color: white; }
+button.danger { background: #e53e3e; color: white; }
+input, select, textarea { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; }
+.header { background: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.logo { display: flex; align-items: center; gap: 15px; }
+.logo svg { width: 40px; height: 40px; }
+.logo h1 { font-size: 20px; color: #667eea; }
+.nav { display: flex; gap: 15px; }
+.nav a { text-decoration: none; color: #667eea; font-weight: 600; padding: 8px 15px; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+table th, table td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+table th { background: #f7f7f7; }
+.login-page { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); width: 100%; max-width: 400px; }
+.login-card h2 { text-align: center; margin-bottom: 20px; color: #667eea; }
