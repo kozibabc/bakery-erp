@@ -1,35 +1,30 @@
-version: '3.8'
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: bakery_user
-      POSTGRES_PASSWORD: bakery_pass_2024
+      POSTGRES_USER: bakery
+      POSTGRES_PASSWORD: bakery123
       POSTGRES_DB: bakery_erp
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
-    networks:
-      - bakery
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "bakery", "-d", "bakery_erp"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./backend
-    environment:
-      DB_HOST: db
-      DB_USER: bakery_user
-      DB_PASSWORD: bakery_pass_2024
-      DB_NAME: bakery_erp
-      JWT_SECRET: super-secret-jwt-key-change-this
-      NODE_ENV: production
-      PORT: 3000
     ports:
       - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://bakery:bakery123@db:5432/bakery_erp
+      JWT_SECRET: my-secret-key-2024
     depends_on:
-      - db
-    networks:
-      - bakery
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -37,11 +32,6 @@ services:
       - "80:80"
     depends_on:
       - backend
-    networks:
-      - bakery
 
 volumes:
-  pg_data:
-
-networks:
-  bakery:
+  pgdata:
