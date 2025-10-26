@@ -5,7 +5,7 @@ import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import ProductsPage from './pages/ProductsPage';
 import UsersPage from './pages/UsersPage';
-import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -20,6 +20,7 @@ function App() {
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(user));
     setToken(newToken);
+    i18n.changeLanguage(user.language);
   };
 
   const handleLogout = () => {
@@ -32,14 +33,16 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Header onLogout={handleLogout} />
-      <div className="container">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+      <div className="app-container">
+        <Sidebar onLogout={handleLogout} />
+        <div className="main-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
       </div>
     </BrowserRouter>
   );
