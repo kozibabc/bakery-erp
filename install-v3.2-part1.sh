@@ -1,3 +1,94 @@
+#!/bin/bash
+
+###############################################################################
+# Sazhenko Bakery ERP v3.2 - Полная версия
+# Заказы + PDF генерация + Аналитика + Улучшения
+###############################################################################
+
+set -e
+
+echo "🍰 Bakery ERP v3.2 - Расширенная версия"
+echo "========================================"
+echo ""
+
+echo "📂 Создаю структуру..."
+mkdir -p backend frontend/src/{pages,components,i18n} frontend/public
+
+###############################################################################
+# DOCKER-COMPOSE.YML
+###############################################################################
+
+cat > docker-compose.yml << 'EOF'
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bakery
+      POSTGRES_PASSWORD: bakery123
+      POSTGRES_DB: bakery_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "bakery", "-d", "bakery_erp"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://bakery:bakery123@db:5432/bakery_erp
+      JWT_SECRET: my-secret-key-2024
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+EOF
+
+###############################################################################
+# BACKEND
+###############################################################################
+
+cat > backend/Dockerfile << 'EOF'
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+CMD ["node", "server.js"]
+EOF
+
+cat > backend/package.json << 'EOF'
+{
+  "name": "bakery-backend",
+  "version": "3.2.0",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "pg": "^8.11.3",
+    "sequelize": "^6.35.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "pdfkit": "^0.13.0"
+  }
+}
+EOF
+
+cat > backend/server.js << 'EOF'
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes } from 'sequelize';
@@ -105,13 +196,6 @@ const auth = (req, res, next) => {
   }
 };
 
-// HELPER: Sanitize numeric fields
-const sanitizeNumeric = (value) => {
-  if (value === '' || value === null || value === undefined) return 0;
-  const num = parseFloat(value);
-  return isNaN(num) ? 0 : num;
-};
-
 // AUTH
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -168,63 +252,33 @@ app.put('/api/clients/:id', auth, async (req, res) => {
   res.json(await Client.findByPk(req.params.id));
 });
 
-// COMPONENTS - FIXED with sanitization
+// COMPONENTS
 app.get('/api/components', auth, async (req, res) => res.json(await Component.findAll()));
-
-app.post('/api/components', auth, async (req, res) => {
-  try {
-    const data = {
-      name: req.body.name || '',
-      price: sanitizeNumeric(req.body.price),
-      quantity: sanitizeNumeric(req.body.quantity),
-      unit: req.body.unit || 'кг'
-    };
-    const component = await Component.create(data);
-    res.json(component);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
+app.post('/api/components', auth, async (req, res) => res.json(await Component.create(req.body)));
 app.put('/api/components/:id', auth, async (req, res) => {
-  try {
-    const data = {
-      name: req.body.name,
-      price: sanitizeNumeric(req.body.price),
-      quantity: sanitizeNumeric(req.body.quantity),
-      unit: req.body.unit
-    };
-    await Component.update(data, { where: { id: req.params.id } });
-    res.json(await Component.findByPk(req.params.id));
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  await Component.update(req.body, { where: { id: req.params.id } });
+  res.json(await Component.findByPk(req.params.id));
 });
 
 // RECIPES
 app.get('/api/recipes', auth, async (req, res) => res.json(await Recipe.findAll()));
-
 app.post('/api/recipes', auth, async (req, res) => {
-  try {
-    const recipe = await Recipe.create({ 
-      name: req.body.name, 
-      outputWeight: sanitizeNumeric(req.body.outputWeight) || 1, 
-      outputUnit: req.body.outputUnit || 'кг'
-    });
-    if (req.body.items) {
-      for (const item of req.body.items) {
-        await RecipeItem.create({ 
-          recipeId: recipe.id, 
-          componentId: item.componentId, 
-          weight: sanitizeNumeric(item.weight),
-          unit: item.unit || 'кг'
-        });
-      }
+  const recipe = await Recipe.create({ 
+    name: req.body.name, 
+    outputWeight: req.body.outputWeight, 
+    outputUnit: req.body.outputUnit 
+  });
+  if (req.body.items) {
+    for (const item of req.body.items) {
+      await RecipeItem.create({ 
+        recipeId: recipe.id, 
+        componentId: item.componentId, 
+        weight: item.weight,
+        unit: item.unit 
+      });
     }
-    res.json(recipe);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
   }
+  res.json(recipe);
 });
 
 app.get('/api/recipes/:id', auth, async (req, res) => {
@@ -236,42 +290,20 @@ app.get('/api/recipes/:id', auth, async (req, res) => {
   res.json({ ...recipe.toJSON(), items });
 });
 
-// PRODUCTS - FIXED with sanitization
+// PRODUCTS
 app.get('/api/products', auth, async (req, res) => {
   const products = await Product.findAll({ include: [Recipe] });
   res.json(products);
 });
 
 app.post('/api/products', auth, async (req, res) => {
-  try {
-    const data = {
-      name: req.body.name,
-      recipeId: req.body.recipeId,
-      boxGrossWeight: sanitizeNumeric(req.body.boxGrossWeight),
-      boxNetWeight: sanitizeNumeric(req.body.boxNetWeight),
-      basePrice: sanitizeNumeric(req.body.basePrice)
-    };
-    const product = await Product.create(data);
-    res.json(product);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  const product = await Product.create(req.body);
+  res.json(product);
 });
 
 app.put('/api/products/:id', auth, async (req, res) => {
-  try {
-    const data = {
-      name: req.body.name,
-      recipeId: req.body.recipeId,
-      boxGrossWeight: sanitizeNumeric(req.body.boxGrossWeight),
-      boxNetWeight: sanitizeNumeric(req.body.boxNetWeight),
-      basePrice: sanitizeNumeric(req.body.basePrice)
-    };
-    await Product.update(data, { where: { id: req.params.id } });
-    res.json(await Product.findByPk(req.params.id));
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  await Product.update(req.body, { where: { id: req.params.id } });
+  res.json(await Product.findByPk(req.params.id));
 });
 
 app.get('/api/products/:id/prices', auth, async (req, res) => {
@@ -324,37 +356,33 @@ app.get('/api/orders', auth, async (req, res) => {
 });
 
 app.post('/api/orders', auth, async (req, res) => {
-  try {
-    const { clientId, items, notes } = req.body;
-    const client = await Client.findByPk(clientId);
-    const settings = await Settings.findOne();
-    
-    let markup = 0;
-    if (client.type === 'wholesale') markup = settings.wholesaleMarkup;
-    if (client.type === 'retail1') markup = settings.retail1Markup;
-    if (client.type === 'retail2') markup = settings.retail2Markup;
-    
-    let totalBoxes = 0;
-    let totalPrice = 0;
-    
-    const order = await Order.create({ clientId, notes });
-    
-    for (const item of items) {
-      const product = await Product.findByPk(item.productId);
-      const price = parseFloat(product.basePrice) * (1 + markup / 100) * item.boxes;
-      await OrderItem.create({ orderId: order.id, productId: item.productId, boxes: item.boxes, price });
-      totalBoxes += item.boxes;
-      totalPrice += price;
-    }
-    
-    order.totalBoxes = totalBoxes;
-    order.totalPrice = totalPrice;
-    await order.save();
-    
-    res.json(order);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+  const { clientId, items, notes } = req.body;
+  const client = await Client.findByPk(clientId);
+  const settings = await Settings.findOne();
+  
+  let markup = 0;
+  if (client.type === 'wholesale') markup = settings.wholesaleMarkup;
+  if (client.type === 'retail1') markup = settings.retail1Markup;
+  if (client.type === 'retail2') markup = settings.retail2Markup;
+  
+  let totalBoxes = 0;
+  let totalPrice = 0;
+  
+  const order = await Order.create({ clientId, notes });
+  
+  for (const item of items) {
+    const product = await Product.findByPk(item.productId);
+    const price = parseFloat(product.basePrice) * (1 + markup / 100) * item.boxes;
+    await OrderItem.create({ orderId: order.id, productId: item.productId, boxes: item.boxes, price });
+    totalBoxes += item.boxes;
+    totalPrice += price;
   }
+  
+  order.totalBoxes = totalBoxes;
+  order.totalPrice = totalPrice;
+  await order.save();
+  
+  res.json(order);
 });
 
 app.put('/api/orders/:id/status', auth, async (req, res) => {
@@ -403,7 +431,7 @@ app.get('/api/analytics/summary', auth, async (req, res) => {
   const completedOrders = await Order.count({ where: { ...where, status: 'completed' } });
   const totalRevenue = await Order.sum('totalPrice', { where });
   
-  res.json({ totalOrders, openOrders, completedOrders, totalRevenue: totalRevenue || 0 });
+  res.json({ totalOrders, openOrders, completedOrders, totalRevenue });
 });
 
 // SETTINGS
@@ -414,22 +442,13 @@ app.get('/api/settings', auth, async (req, res) => {
 });
 
 app.put('/api/settings', auth, async (req, res) => {
-  try {
-    const data = {
-      wholesaleMarkup: sanitizeNumeric(req.body.wholesaleMarkup),
-      retail1Markup: sanitizeNumeric(req.body.retail1Markup),
-      retail2Markup: sanitizeNumeric(req.body.retail2Markup)
-    };
-    let settings = await Settings.findOne();
-    if (!settings) {
-      settings = await Settings.create(data);
-    } else {
-      await settings.update(data);
-    }
-    res.json(settings);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
+  let settings = await Settings.findOne();
+  if (!settings) {
+    settings = await Settings.create(req.body);
+  } else {
+    await settings.update(req.body);
   }
+  res.json(settings);
 });
 
 // INIT
@@ -440,3 +459,50 @@ sequelize.sync({ force: true }).then(async () => {
   console.log('✅ Database initialized');
   app.listen(3000, () => console.log('🚀 Backend on :3000'));
 });
+EOF
+
+echo "✅ Backend создан"
+echo ""
+echo "Создаю frontend..."
+echo ""
+
+# Frontend files будут в следующем сообщении из-за ограничения размера
+
+cat > .gitignore << 'EOF'
+node_modules
+.env
+/frontend/build
+pgdata
+*.log
+EOF
+
+cat > README.md << 'EOF'
+# 🍰 Bakery ERP v3.2
+
+## Новые возможности v3.2
+- ✅ Страница заказов (привязка товаров к клиентам)
+- ✅ Генерация PDF для заказов
+- ✅ Генерация прайс-листа в PDF
+- ✅ Аналитика (статистика заказов, сводки)
+- ✅ Telegram ссылки (автоматические)
+- ✅ Рецепты: выбор единиц (кг/г/мл)
+- ✅ Товары: редактирование, автогенерация веса
+
+## Запуск
+```bash
+chmod +x install-v3.2.sh
+./install-v3.2.sh
+docker compose down --volumes
+docker compose up -d --build
+```
+
+**Логин:** admin / **Пароль:** admin  
+**URL:** http://localhost
+EOF
+
+echo ""
+echo "✅ v3.2 создана!"
+echo ""
+echo "⚠️  Файлы frontend создаются отдельным скриптом"
+echo "   (слишком большой размер для одного файла)"
+echo ""

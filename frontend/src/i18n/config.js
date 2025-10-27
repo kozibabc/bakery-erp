@@ -11,6 +11,8 @@ const resources = {
       components: 'Компоненти',
       products: 'Товари',
       recipes: 'Рецепти',
+      orders: 'Замовлення',
+      analytics: 'Аналітика',
       settings: 'Налаштування',
       logout: 'Вихід',
       login: 'Логін',
@@ -23,6 +25,7 @@ const resources = {
       edit: 'Редагувати',
       save: 'Зберегти',
       cancel: 'Скасувати',
+      delete: 'Видалити',
       type: 'Тип',
       wholesale: 'Оптовий',
       retail1: 'Роздріб 1',
@@ -31,7 +34,9 @@ const resources = {
       quantity: 'Кількість',
       basePrice: 'Базова ціна',
       markup: 'Наценка',
-      weight: 'Вага'
+      weight: 'Вага',
+      generatePDF: 'Генерувати PDF',
+      downloadOrder: 'Завантажити замовлення'
     }
   },
   ru: {
@@ -43,6 +48,8 @@ const resources = {
       components: 'Компоненты',
       products: 'Товары',
       recipes: 'Рецепты',
+      orders: 'Заказы',
+      analytics: 'Аналитика',
       settings: 'Настройки',
       logout: 'Выход',
       login: 'Логин',
@@ -55,6 +62,7 @@ const resources = {
       edit: 'Редактировать',
       save: 'Сохранить',
       cancel: 'Отмена',
+      delete: 'Удалить',
       type: 'Тип',
       wholesale: 'Оптовый',
       retail1: 'Розница 1',
@@ -63,7 +71,9 @@ const resources = {
       quantity: 'Количество',
       basePrice: 'Базовая цена',
       markup: 'Наценка',
-      weight: 'Вес'
+      weight: 'Вес',
+      generatePDF: 'Генерировать PDF',
+      downloadOrder: 'Скачать заказ'
     }
   },
   en: {
@@ -75,6 +85,8 @@ const resources = {
       components: 'Components',
       products: 'Products',
       recipes: 'Recipes',
+      orders: 'Orders',
+      analytics: 'Analytics',
       settings: 'Settings',
       logout: 'Logout',
       login: 'Login',
@@ -87,6 +99,7 @@ const resources = {
       edit: 'Edit',
       save: 'Save',
       cancel: 'Cancel',
+      delete: 'Delete',
       type: 'Type',
       wholesale: 'Wholesale',
       retail1: 'Retail 1',
@@ -95,7 +108,9 @@ const resources = {
       quantity: 'Quantity',
       basePrice: 'Base Price',
       markup: 'Markup',
-      weight: 'Weight'
+      weight: 'Weight',
+      generatePDF: 'Generate PDF',
+      downloadOrder: 'Download Order'
     }
   }
 };

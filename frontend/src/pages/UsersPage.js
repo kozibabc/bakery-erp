@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import TelegramLink from '../components/TelegramLink';
 
 function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -9,9 +10,7 @@ function UsersPage() {
   const { t } = useTranslation();
   const token = localStorage.getItem('token');
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
 
   const loadUsers = () => {
     axios.get('http://localhost:3000/api/users', { headers: { Authorization: `Bearer ${token}` } })
@@ -58,14 +57,14 @@ function UsersPage() {
       </div>
       <div className="form-group">
         <label>{t('telegram')}</label>
-        <input value={form.telegram} onChange={e => setForm({...form, telegram: e.target.value})} />
+        <input value={form.telegram} onChange={e => setForm({...form, telegram: e.target.value})} placeholder="@username" />
       </div>
       <button className="btn btn-primary" onClick={handleSubmit}>
         {editing ? t('save') : t('add')}
       </button>
       {editing && <button className="btn" onClick={() => { setEditing(null); setForm({ login: '', password: '', name: '', email: '', phone: '', telegram: '' }); }}>{t('cancel')}</button>}
       <table>
-        <thead><tr><th>{t('login')}</th><th>{t('name')}</th><th>{t('email')}</th><th>{t('phone')}</th><th></th></tr></thead>
+        <thead><tr><th>{t('login')}</th><th>{t('name')}</th><th>{t('email')}</th><th>{t('phone')}</th><th>Telegram</th><th></th></tr></thead>
         <tbody>
           {users.map(u => (
             <tr key={u.id}>
@@ -73,6 +72,7 @@ function UsersPage() {
               <td>{u.name}</td>
               <td>{u.email}</td>
               <td>{u.phone}</td>
+              <td><TelegramLink username={u.telegram} /></td>
               <td><button className="btn btn-warning" onClick={() => handleEdit(u)}>{t('edit')}</button></td>
             </tr>
           ))}

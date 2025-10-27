@@ -9,6 +9,8 @@ import ClientsPage from './pages/ClientsPage';
 import ComponentsPage from './pages/ComponentsPage';
 import ProductsPage from './pages/ProductsPage';
 import RecipesPage from './pages/RecipesPage';
+import OrdersPage from './pages/OrdersPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 
 function App() {
@@ -41,6 +43,8 @@ function App() {
             <NavLink to="/components">📦 {t('components')}</NavLink>
             <NavLink to="/products">🍰 {t('products')}</NavLink>
             <NavLink to="/recipes">📋 {t('recipes')}</NavLink>
+            <NavLink to="/orders">📝 {t('orders')}</NavLink>
+            <NavLink to="/analytics">📊 {t('analytics')}</NavLink>
             <NavLink to="/settings">⚙️ {t('settings')}</NavLink>
           </nav>
           <div className="lang-selector">
@@ -63,6 +67,8 @@ function App() {
             <Route path="/components" element={<ComponentsPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/recipes" element={<RecipesPage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

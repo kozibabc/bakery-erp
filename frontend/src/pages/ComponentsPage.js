@@ -34,7 +34,9 @@ function ComponentsPage() {
       <input value={form.quantity} onChange={e => setForm({...form, quantity: e.target.value})} placeholder={t('quantity')} type="number" step="0.001" />
       <select value={form.unit} onChange={e => setForm({...form, unit: e.target.value})}>
         <option>кг</option>
+        <option>г</option>
         <option>л</option>
+        <option>мл</option>
         <option>шт</option>
       </select>
       <button className="btn btn-primary" onClick={handleSubmit}>{editing ? t('save') : t('add')}</button>
@@ -45,7 +47,7 @@ function ComponentsPage() {
           {items.map(c => (
             <tr key={c.id}>
               <td>{c.name}</td>
-              <td>{c.price}</td>
+              <td>{c.price} грн</td>
               <td>{c.quantity}</td>
               <td>{c.unit}</td>
               <td><button className="btn btn-warning" onClick={() => { setForm(c); setEditing(c.id); }}>{t('edit')}</button></td>

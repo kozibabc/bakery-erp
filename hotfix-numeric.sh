@@ -1,3 +1,17 @@
+#!/bin/bash
+
+###############################################################################
+# Bakery ERP v3.2 - HOTFIX для ошибки numeric
+# Исправление: пустые строки в полях price/quantity
+###############################################################################
+
+set -e
+
+echo "🔧 Applying hotfix for numeric validation..."
+echo ""
+
+# FIX 1: Backend - добавить валидацию и значения по умолчанию
+cat > backend/server.js << 'EOF'
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes } from 'sequelize';
@@ -440,3 +454,14 @@ sequelize.sync({ force: true }).then(async () => {
   console.log('✅ Database initialized');
   app.listen(3000, () => console.log('🚀 Backend on :3000'));
 });
+EOF
+
+echo "✅ Backend hotfix applied!"
+echo ""
+echo "🔄 Перезапустите контейнеры:"
+echo "   docker compose restart backend"
+echo ""
+echo "Или полная пересборка:"
+echo "   docker compose down"
+echo "   docker compose up -d --build"
+echo ""

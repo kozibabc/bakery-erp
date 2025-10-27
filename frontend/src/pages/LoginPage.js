@@ -20,7 +20,7 @@ function LoginPage({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h2 style={{textAlign: 'center'}}>🍰 Bakery ERP v3.1</h2>
+        <h2 style={{textAlign: 'center'}}>🍰 Bakery ERP v3.2</h2>
         <form onSubmit={handleSubmit}>
           <input value={login} onChange={e => setLogin(e.target.value)} placeholder={t('login')} />
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={t('password')} />
