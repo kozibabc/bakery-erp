@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: bakery-db
     environment:
       POSTGRES_USER: bakery
       POSTGRES_PASSWORD: bakery123
@@ -15,28 +16,39 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+    networks:
+      - bakery-net
 
   backend:
     build: ./backend
+    container_name: bakery-backend
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://bakery:bakery123@db:5432/bakery_erp
       JWT_SECRET: my-secret-key-2024
-      NODE_ENV: production
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - bakery-net
 
   frontend:
     build: ./frontend
+    container_name: bakery-frontend
     ports:
       - "80:80"
     depends_on:
       - backend
     restart: unless-stopped
+    networks:
+      - bakery-net
 
 volumes:
   pgdata:
     driver: local
+
+networks:
+  bakery-net:
+    driver: bridge

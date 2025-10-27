@@ -1,5 +1,6 @@
-node_modules
+node_modules/
 .env
 /frontend/build
-pgdata
 *.log
+.DS_Store
+pgdata/
