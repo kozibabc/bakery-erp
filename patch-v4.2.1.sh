@@ -1,3 +1,27 @@
+#!/bin/bash
+
+###############################################################################
+# 🍰 Bakery ERP v4.2.1 PATCH
+# Упаковка в товаре + Списание со склада при выполнении заказа
+###############################################################################
+
+set -e
+
+echo "🍰 Bakery ERP v4.2.1 PATCH"
+echo "=========================="
+echo ""
+echo "Добавляет:"
+echo "  ✅ Упаковку в товар (отдельно от рецепта)"
+echo "  ✅ Закупки упаковки"
+echo "  ✅ Автоматическое списание со склада при выполнении заказа"
+echo "  ✅ MRP расчёт по всем уровням рецептов"
+echo ""
+
+###############################################################################
+# BACKEND - ENHANCED server.js WITH STOCK WRITEOFF
+###############################################################################
+
+cat > backend/src/server.js << 'EOFSERVER'
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes, Op } from 'sequelize';
@@ -10,7 +34,10 @@ app.use(express.json());
 
 const sequelize = new Sequelize(process.env.DATABASE_URL, { logging: false });
 
-// Models
+// ============================================================================
+// MODELS
+// ============================================================================
+
 const User = sequelize.define('User', {
   login: { type: DataTypes.STRING, unique: true },
   password: DataTypes.STRING,
@@ -38,7 +65,10 @@ const Supplier = sequelize.define('Supplier', {
 
 const Component = sequelize.define('Component', {
   name: DataTypes.STRING,
-  type: { type: DataTypes.STRING, defaultValue: 'RAW' },
+  type: { 
+    type: DataTypes.STRING,
+    defaultValue: 'RAW'
+  },
   unit: { type: DataTypes.STRING, defaultValue: 'кг' },
   linkedRecipeId: { type: DataTypes.INTEGER, allowNull: true }
 });
@@ -72,11 +102,20 @@ const RecipeItem = sequelize.define('RecipeItem', {
   stage: { type: DataTypes.STRING, defaultValue: 'основа' }
 });
 
+// ENHANCED Product - добавляем упаковку
 const Product = sequelize.define('Product', {
   name: DataTypes.STRING,
   recipeId: { type: DataTypes.INTEGER },
-  packagingComponentId: { type: DataTypes.INTEGER, allowNull: true },
-  packagingQty: { type: DataTypes.DECIMAL(10, 3), defaultValue: 1 },
+  packagingComponentId: { 
+    type: DataTypes.INTEGER, 
+    allowNull: true,
+    comment: 'ID компонента упаковки (PACK)'
+  },
+  packagingQty: { 
+    type: DataTypes.DECIMAL(10, 3), 
+    defaultValue: 1,
+    comment: 'Количество упаковки на 1 коробку'
+  },
   boxNetWeight: { type: DataTypes.DECIMAL(10, 3), defaultValue: 1.000 },
   boxGrossWeight: { type: DataTypes.DECIMAL(10, 3), defaultValue: 1.000 },
   calculatedCost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
@@ -88,7 +127,10 @@ const Product = sequelize.define('Product', {
 const Order = sequelize.define('Order', {
   orderNumber: DataTypes.STRING,
   clientId: DataTypes.INTEGER,
-  status: { type: DataTypes.ENUM('draft', 'in_production', 'done'), defaultValue: 'draft' },
+  status: { 
+    type: DataTypes.ENUM('draft', 'in_production', 'done'), 
+    defaultValue: 'draft' 
+  },
   totalPrice: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   totalCost: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   profit: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 }
@@ -102,6 +144,7 @@ const OrderItem = sequelize.define('OrderItem', {
   totalPrice: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 }
 });
 
+// Production usage log
 const ProductionUsage = sequelize.define('ProductionUsage', {
   orderId: DataTypes.INTEGER,
   componentId: DataTypes.INTEGER,
@@ -119,20 +162,30 @@ const Settings = sequelize.define('Settings', {
   companyName: { type: DataTypes.STRING, defaultValue: 'Sazhenko Bakery' }
 });
 
-// Associations
+// ============================================================================
+// ASSOCIATIONS
+// ============================================================================
+
 Order.belongsTo(Client, { foreignKey: 'clientId' });
 Order.hasMany(OrderItem, { foreignKey: 'orderId' });
 Order.hasMany(ProductionUsage, { foreignKey: 'orderId' });
+OrderItem.belongsTo(Order, { foreignKey: 'orderId' });
 OrderItem.belongsTo(Product, { foreignKey: 'productId' });
 Stock.belongsTo(Component, { foreignKey: 'componentId' });
+Purchase.belongsTo(Supplier, { foreignKey: 'supplierId' });
 Purchase.belongsTo(Component, { foreignKey: 'componentId' });
 Recipe.hasMany(RecipeItem, { foreignKey: 'recipeId' });
+RecipeItem.belongsTo(Recipe, { foreignKey: 'recipeId' });
 RecipeItem.belongsTo(Component, { foreignKey: 'componentId' });
 Product.belongsTo(Recipe, { foreignKey: 'recipeId' });
 Product.belongsTo(Component, { as: 'PackagingComponent', foreignKey: 'packagingComponentId' });
+Component.belongsTo(Recipe, { as: 'LinkedRecipe', foreignKey: 'linkedRecipeId' });
 ProductionUsage.belongsTo(Component, { foreignKey: 'componentId' });
 
-// Cost functions
+// ============================================================================
+// COST CALCULATION FUNCTIONS
+// ============================================================================
+
 async function calculateComponentCost(componentId, visited = new Set()) {
   if (visited.has(componentId)) return 0;
   visited.add(componentId);
@@ -160,6 +213,7 @@ async function calculateRecipeCost(recipeId, visited = new Set()) {
   if (!recipe || !recipe.RecipeItems) return 0;
 
   let totalCost = 0;
+
   for (const item of recipe.RecipeItems) {
     const componentCost = await calculateComponentCost(item.componentId, visited);
     const itemCost = parseFloat(item.weight) * componentCost;
@@ -168,6 +222,7 @@ async function calculateRecipeCost(recipeId, visited = new Set()) {
 
   const outputWeight = parseFloat(recipe.outputWeight) || 1;
   const costPer1Kg = totalCost / outputWeight;
+
   await recipe.update({ calculatedCost: costPer1Kg });
 
   return costPer1Kg;
@@ -182,6 +237,7 @@ async function calculateProductCost(productId) {
   
   let baseCost = recipeCostPer1Kg * boxNetWeight;
 
+  // Добавляем стоимость упаковки
   if (product.packagingComponentId) {
     const packCost = await calculateComponentCost(product.packagingComponentId);
     const packQty = parseFloat(product.packagingQty) || 1;
@@ -213,7 +269,11 @@ async function calculateProductCost(productId) {
   return { baseCost, wholesalePrice, retail1Price, retail2Price };
 }
 
-// MRP - Collect raw materials
+// ============================================================================
+// MRP - Material Requirements Planning
+// ============================================================================
+
+// Рекурсивный сбор всех сырьевых компонентов для рецепта
 async function collectRawMaterials(recipeId, multiplier = 1, materials = {}, visited = new Set()) {
   if (visited.has(recipeId)) return materials;
   visited.add(recipeId);
@@ -229,8 +289,10 @@ async function collectRawMaterials(recipeId, multiplier = 1, materials = {}, vis
     const qty = parseFloat(item.weight) * multiplier;
 
     if (component.type === 'SEMI_OWN' && component.linkedRecipeId) {
+      // Рекурсивно разворачиваем вложенный рецепт
       await collectRawMaterials(component.linkedRecipeId, qty, materials, visited);
     } else {
+      // RAW, SEMI_BOUGHT, PACK - добавляем в список
       if (!materials[component.id]) {
         materials[component.id] = {
           componentId: component.id,
@@ -247,7 +309,7 @@ async function collectRawMaterials(recipeId, multiplier = 1, materials = {}, vis
   return materials;
 }
 
-// Write off stock
+// Списание со склада
 async function writeOffStock(orderId) {
   const order = await Order.findByPk(orderId, {
     include: [{ 
@@ -263,16 +325,19 @@ async function writeOffStock(orderId) {
 
   const allMaterials = {};
 
+  // Собираем материалы по всем позициям заказа
   for (const orderItem of order.OrderItems) {
     const product = orderItem.Product;
     const boxes = parseInt(orderItem.boxes);
     const boxNetWeight = parseFloat(product.boxNetWeight) || 1;
     const totalWeight = boxNetWeight * boxes;
 
+    // Материалы из рецепта
     if (product.recipeId) {
       await collectRawMaterials(product.recipeId, totalWeight, allMaterials);
     }
 
+    // Упаковка
     if (product.packagingComponentId) {
       const packQty = parseFloat(product.packagingQty) || 1;
       const totalPackQty = packQty * boxes;
@@ -291,13 +356,14 @@ async function writeOffStock(orderId) {
     }
   }
 
+  // Списываем со склада и логируем
   let totalCost = 0;
 
   for (const mat of Object.values(allMaterials)) {
     const stock = await Stock.findOne({ where: { componentId: mat.componentId } });
     
     if (!stock) {
-      console.warn('Component ' + mat.name + ' not in stock');
+      console.warn(\`Component \${mat.name} not in stock\`);
       continue;
     }
 
@@ -306,9 +372,11 @@ async function writeOffStock(orderId) {
     const usedQty = parseFloat(mat.qty);
     const cost = usedQty * costPerUnit;
 
+    // Списываем
     const newQty = Math.max(0, currentQty - usedQty);
     await stock.update({ qtyOnHand: newQty });
 
+    // Логируем
     await ProductionUsage.create({
       orderId,
       componentId: mat.componentId,
@@ -320,6 +388,7 @@ async function writeOffStock(orderId) {
     totalCost += cost;
   }
 
+  // Обновляем заказ
   await order.update({
     status: 'done',
     totalCost,
@@ -334,7 +403,10 @@ async function writeOffStock(orderId) {
   };
 }
 
-// Auth
+// ============================================================================
+// AUTH
+// ============================================================================
+
 const auth = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -345,7 +417,11 @@ const auth = (req, res, next) => {
   }
 };
 
-// Routes - Auth
+// ============================================================================
+// ROUTES
+// ============================================================================
+
+// Auth
 app.post('/api/auth/login', async (req, res) => {
   const { login, password } = req.body;
   const user = await User.findOne({ where: { login } });
@@ -356,7 +432,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ token, user: { id: user.id, login: user.login, name: user.name } });
 });
 
-// Routes - Users
+// Users
 app.get('/api/users', auth, async (req, res) => {
   res.json(await User.findAll({ attributes: { exclude: ['password'] } }));
 });
@@ -372,7 +448,7 @@ app.put('/api/users/:id', auth, async (req, res) => {
   res.json(await User.findByPk(req.params.id, { attributes: { exclude: ['password'] } }));
 });
 
-// Routes - Clients
+// Clients
 app.get('/api/clients', auth, async (req, res) => res.json(await Client.findAll()));
 app.post('/api/clients', auth, async (req, res) => res.json(await Client.create(req.body)));
 app.put('/api/clients/:id', auth, async (req, res) => {
@@ -384,11 +460,11 @@ app.delete('/api/clients/:id', auth, async (req, res) => {
   res.json({ message: 'Deleted' });
 });
 
-// Routes - Suppliers
+// Suppliers
 app.get('/api/suppliers', auth, async (req, res) => res.json(await Supplier.findAll()));
 app.post('/api/suppliers', auth, async (req, res) => res.json(await Supplier.create(req.body)));
 
-// Routes - Components
+// Components
 app.get('/api/components', auth, async (req, res) => {
   res.json(await Component.findAll({
     include: [{ model: Recipe, as: 'LinkedRecipe' }]
@@ -398,7 +474,7 @@ app.post('/api/components', auth, async (req, res) => {
   res.json(await Component.create(req.body));
 });
 
-// Routes - Purchases
+// Purchases
 app.get('/api/purchases', auth, async (req, res) => {
   res.json(await Purchase.findAll({ 
     include: [Supplier, Component],
@@ -406,7 +482,7 @@ app.get('/api/purchases', auth, async (req, res) => {
   }));
 });
 app.post('/api/purchases', auth, async (req, res) => {
-  const { componentId, qty, pricePerUnit } = req.body;
+  const { supplierId, componentId, qty, pricePerUnit } = req.body;
   const totalSum = parseFloat(qty) * parseFloat(pricePerUnit);
   
   const purchase = await Purchase.create({ ...req.body, totalSum });
@@ -425,17 +501,19 @@ app.post('/api/purchases', auth, async (req, res) => {
   res.json(purchase);
 });
 
-// Routes - Stock
+// Stock
 app.get('/api/stock', auth, async (req, res) => {
   res.json(await Stock.findAll({ include: [Component] }));
 });
 
-// Routes - Recipes
+// Recipes
 app.get('/api/recipes', auth, async (req, res) => {
-  res.json(await Recipe.findAll({ 
+  const recipes = await Recipe.findAll({ 
     include: [{ model: RecipeItem, include: [Component] }] 
-  }));
+  });
+  res.json(recipes);
 });
+
 app.post('/api/recipes', auth, async (req, res) => {
   const recipe = await Recipe.create(req.body);
   if (req.body.items) {
@@ -448,31 +526,37 @@ app.post('/api/recipes', auth, async (req, res) => {
     include: [{ model: RecipeItem, include: [Component] }] 
   }));
 });
+
 app.put('/api/recipes/:id', auth, async (req, res) => {
   const { name, outputWeight, items } = req.body;
   await Recipe.update({ name, outputWeight }, { where: { id: req.params.id } });
+  
   if (items) {
     await RecipeItem.destroy({ where: { recipeId: req.params.id } });
     for (const item of items) {
       await RecipeItem.create({ recipeId: req.params.id, ...item });
     }
   }
+  
   await calculateRecipeCost(req.params.id);
+  
   res.json(await Recipe.findByPk(req.params.id, { 
     include: [{ model: RecipeItem, include: [Component] }] 
   }));
 });
+
 app.get('/api/recipes/:id/cost', auth, async (req, res) => {
   const cost = await calculateRecipeCost(req.params.id);
   res.json({ recipeCostPer1Kg: cost });
 });
 
-// Routes - Products
+// Products
 app.get('/api/products', auth, async (req, res) => {
   res.json(await Product.findAll({ 
     include: [Recipe, { model: Component, as: 'PackagingComponent' }] 
   }));
 });
+
 app.post('/api/products', auth, async (req, res) => {
   const product = await Product.create(req.body);
   if (product.recipeId) {
@@ -482,6 +566,7 @@ app.post('/api/products', auth, async (req, res) => {
     include: [Recipe, { model: Component, as: 'PackagingComponent' }] 
   }));
 });
+
 app.put('/api/products/:id', auth, async (req, res) => {
   await Product.update(req.body, { where: { id: req.params.id } });
   if (req.body.recipeId || req.body.boxNetWeight || req.body.packagingComponentId) {
@@ -491,30 +576,36 @@ app.put('/api/products/:id', auth, async (req, res) => {
     include: [Recipe, { model: Component, as: 'PackagingComponent' }] 
   }));
 });
+
 app.post('/api/products/:id/recalculate', auth, async (req, res) => {
   const costs = await calculateProductCost(req.params.id);
   res.json(costs);
 });
 
-// Routes - Orders
+// Orders
 app.get('/api/orders', auth, async (req, res) => {
   res.json(await Order.findAll({ 
     include: [Client, { model: OrderItem, include: [Product] }],
     order: [['createdAt', 'DESC']]
   }));
 });
+
 app.post('/api/orders', auth, async (req, res) => {
   const order = await Order.create(req.body);
   res.json(order);
 });
+
 app.put('/api/orders/:id', auth, async (req, res) => {
   await Order.update(req.body, { where: { id: req.params.id } });
   res.json(await Order.findByPk(req.params.id));
 });
+
 app.post('/api/orders/:id/items', auth, async (req, res) => {
   const item = await OrderItem.create({ orderId: req.params.id, ...req.body });
   res.json(item);
 });
+
+// ENHANCED: Complete order with stock writeoff
 app.post('/api/orders/:id/complete', auth, async (req, res) => {
   try {
     const result = await writeOffStock(req.params.id);
@@ -523,6 +614,8 @@ app.post('/api/orders/:id/complete', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Get production usage for order
 app.get('/api/orders/:id/usage', auth, async (req, res) => {
   const usage = await ProductionUsage.findAll({
     where: { orderId: req.params.id },
@@ -531,7 +624,7 @@ app.get('/api/orders/:id/usage', auth, async (req, res) => {
   res.json(usage);
 });
 
-// Routes - Settings
+// Settings
 app.get('/api/settings', auth, async (req, res) => {
   let settings = await Settings.findOne();
   if (!settings) {
@@ -539,6 +632,7 @@ app.get('/api/settings', auth, async (req, res) => {
   }
   res.json(settings);
 });
+
 app.put('/api/settings', auth, async (req, res) => {
   let settings = await Settings.findOne();
   if (!settings) {
@@ -549,7 +643,10 @@ app.put('/api/settings', auth, async (req, res) => {
   res.json(settings);
 });
 
-// Init
+// ============================================================================
+// INIT
+// ============================================================================
+
 const init = async () => {
   await sequelize.sync({ force: false, alter: true });
   
@@ -569,11 +666,28 @@ const init = async () => {
     await Settings.create({});
   }
   
-  console.log('DB OK v4.2.1');
-  app.listen(3000, '0.0.0.0', () => console.log('Backend v4.2.1 ready'));
+  console.log('✅ Database ready (v4.2.1)');
+  app.listen(3000, '0.0.0.0', () => console.log('🚀 Backend v4.2.1 on :3000'));
 };
 
 init().catch(err => {
-  console.error('ERROR:', err.message);
+  console.error('❌ Init failed:', err);
   process.exit(1);
 });
+EOFSERVER
+
+echo ""
+echo "✅ Патч v4.2.1 применён!"
+echo ""
+echo "📋 Что добавлено:"
+echo "   ✅ Product.packagingComponentId - ID упаковки"
+echo "   ✅ Product.packagingQty - количество упаковки на коробку"
+echo "   ✅ Упаковку можно закупать (тип PACK)"
+echo "   ✅ POST /api/orders/:id/complete - списание со склада"
+echo "   ✅ GET /api/orders/:id/usage - журнал списания"
+echo "   ✅ MRP расчёт по всем уровням рецептов"
+echo ""
+echo "🚀 Перезапустите:"
+echo "   docker compose down"
+echo "   docker compose up -d --build"
+echo ""

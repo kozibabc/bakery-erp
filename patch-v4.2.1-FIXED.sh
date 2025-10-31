@@ -1,3 +1,18 @@
+#!/bin/bash
+
+###############################################################################
+# 🍰 Bakery ERP v4.2.1 PATCH - FIXED
+# Упаковка в товаре + Списание со склада (ИСПРАВЛЕНО)
+###############################################################################
+
+set -e
+
+echo "🍰 Bakery ERP v4.2.1 PATCH - FIXED"
+echo "==================================="
+echo ""
+
+# Создаём server.js с правильным экранированием
+cat > backend/src/server.js << 'EOFSERVER'
 import express from 'express';
 import cors from 'cors';
 import { Sequelize, DataTypes, Op } from 'sequelize';
@@ -577,3 +592,11 @@ init().catch(err => {
   console.error('ERROR:', err.message);
   process.exit(1);
 });
+EOFSERVER
+
+echo "✅ server.js ИСПРАВЛЕН"
+echo ""
+echo "🚀 Пересоберите:"
+echo "   docker compose down"
+echo "   docker compose up -d --build"
+echo ""
